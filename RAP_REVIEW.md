@@ -11,6 +11,9 @@ The domain model represents a CRM Churn Retention Enhancement scenario for a Tel
 - **RetentionOfferReason (Child)**: Stores reasons associated with the offer (e.g., rejection reasons).
 - **RetentionOfferApproval (Child)**: Stores approval routing details when an offer discount exceeds a configured threshold.
 
+> **Note on Customer Entities (GDPR Boundary)**
+> You will notice there are no `Customer` or `Contract` entities stored within this aggregate. This is intentional. The RetentionOffer BO never copies customer personal data into its own tables. All personal data is accessed via read-only CDS associations to external entities (e.g., `ZI_Customer`, `ZI_Contract`). This establishes a strict **GDPR boundary** and respects the Bounded Context architecture.
+
 ### Business Rules (Invariants)
 The domain model enforces four primary business rules:
 1. **Discount Limit**: The maximum allowable discount is 30%.

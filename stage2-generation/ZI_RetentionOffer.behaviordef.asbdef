@@ -1,0 +1,67 @@
+" Artifact: ZI_RetentionOffer (Behavior Definition — BDEF)
+" Generated from: Domain Model v1 (approved)
+" Invariants: 1, 2, 3, 4 (ALL visible in BDEF — BDEF-004)
+" House rules: BDEF-001 (strict), BDEF-002 (lock master), BDEF-003 (auth master),
+"             BDEF-004 (invariants visible), BDEF-005 (trigger correctness),
+"             BDEF-006 (action result), BDEF-007 (draft justified),
+"             BDEF-008 (determination idempotency), BDEF-010 (readonly after transition)
+
+managed implementation in class zbp_i_retention_offer unique;
+strict mode (2);
+with draft;
+
+define behavior for ZI_RetentionOffer alias Offer
+persistent table zret_offer
+draft table zret_offer_d
+lock master total etag LastChangedAt
+authorization master ( instance ) auth object Z_RET_OFF
+
+field ( readonly : acceptOffer, rejectOffer ) Discount;       " BDEF-010: immutable after state transition
+field ( readonly : acceptOffer, rejectOffer ) Discount;       " BDEF-010
+field ( readonly ) ContractUUID;     " D2: ContractUUID immutable after create
+field ( readonly ) CustomerUUID;     " GDPR: Customer reference immutable
+field ( readonly ) CreatedAt;
+field ( readonly ) CreatedBy;
+
+" Invariant 1: Discount ≤ 30% (BDEF-004, BDEF-005: validation on save)
+validation validateDiscountCeiling on save { field Discount; }
+
+" Invariant 2: 72h validity (BDEF-004, BDEF-005: determination on modify create)
+determination determineExpiry on modify { create; }
+
+" Invariant 3: One active offer per contract (BDEF-004, BDEF-005: validation on save)
+validation validateSingleActiveOffer on save { field ContractUUID; }
+
+" Invariant 4: Approval above threshold (BDEF-004, BDEF-005: determination on modify)
+determination determineApprovalRequired on modify { field Discount; }
+validation validateApprovalStatus on save { field ApprovalStatus; }
+
+" Actions (BDEF-006: result parameter required)
+action acceptOffer result [1] $self;       " Triggers billing ApplyDiscount
+action rejectOffer result [1] $self;       " Sets status to REJECTED
+action requestApproval result [1] $self;   " Triggers approval workflow
+
+define behavior for ZI_RetOfferReason alias Reason
+persistent table zret_offer_reason
+draft table zret_offer_reason_d
+lock dependent by association
+authorization dependent
+numbering managed;                        " BDEF-011: framework generates UUID
+
+field ( readonly ) ReasonUUID;
+field ( readonly ) ParentUUID;
+
+define behavior for ZI_RetOfferApproval alias Approval
+persistent table zret_offer_approval
+draft table zret_offer_approval_d
+lock dependent by association
+authorization dependent
+numbering managed;
+
+field ( readonly ) ApprovalUUID;
+field ( readonly ) ParentUUID;
+
+" Draft handling
+draft action (features) edit;
+draft action activate;
+draft action discard;

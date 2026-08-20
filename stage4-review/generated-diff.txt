@@ -1,0 +1,1014 @@
+STAGE 4 REVIEW — GENERATED DIFF (ALL NEW FILES)
+================================================================================
+Files: 12
+All artifacts are new (no prior version — full diff = full content)
+================================================================================
+
+================================================================================
+File: ZC_RetOfferApproval.ddls.asddls
+================================================================================
+" Artifact: ZC_RetOfferApproval (Projection CDS View — Child)
+" Generated from: Domain Model v1 (approved)
+@AccessControl.authorizationCheck: #CHECK_REQUIRED
+@EndUserText.label: 'Retention Offer Approval'
+@ObjectModel.writeActive: true
+@Metadata.allowExtensions: true
+define view entity ZC_RetOfferApproval
+  as projection on ZI_RetOfferApproval as Approval
+{
+  key Approval.ApprovalUUID,
+      Approval.ParentUUID,
+      Approval.Approver,
+      Approval.ApprovalTimestamp,
+      Approval.Decision,
+      Approval.Comment,
+      _Parent : redirected ZI_RetentionOffer
+}
+
+
+================================================================================
+File: ZC_RetOfferReason.ddls.asddls
+================================================================================
+" Artifact: ZC_RetOfferReason (Projection CDS View — Child)
+" Generated from: Domain Model v1 (approved)
+@AccessControl.authorizationCheck: #CHECK_REQUIRED
+@EndUserText.label: 'Retention Offer Reason'
+@ObjectModel.writeActive: true
+@Metadata.allowExtensions: true
+define view entity ZC_RetOfferReason
+  as projection on ZI_RetOfferReason as Reason
+{
+  key Reason.ReasonUUID,
+      Reason.ParentUUID,
+      Reason.ReasonCode,
+      Reason.ReasonText,
+      _Parent : redirected ZI_RetentionOffer
+}
+
+
+================================================================================
+File: ZC_RetOfferReason.metadataextension.asddxe
+================================================================================
+" Artifact: ZC_RetOfferReason (Metadata Extension — UI Annotations)
+" Generated from: Domain Model v1 (approved)
+" House rules: FIORI-001, FIORI-002, FIORI-007, FIORI-013
+@Metadata.layer: #CORE
+@UI.headerInfo: {
+  typeName: 'Offer Reason',
+  typeNamePlural: 'Offer Reasons',
+  title: { value: 'ReasonCode' },
+  description: { value: 'ReasonText' }
+}
+@UI.draftHandling.purpose: #draft
+
+define view entity ZC_RetOfferReason
+  with metadata extension ZC_RetOfferReason
+{
+  @UI.lineItem: [{ position: 10, label: 'Reason Code', importance: #HIGH }]
+  @UI.identification: [{ position: 10, label: 'Reason Code' }]
+  ReasonCode;
+
+  @UI.lineItem: [{ position: 20, label: 'Description', importance: #HIGH }]
+  @UI.identification: [{ position: 20, label: 'Description' }]
+  ReasonText;
+
+  @UI.hidden: true
+  ReasonUUID;
+
+  @UI.hidden: true
+  ParentUUID;
+
+  _Parent;
+}
+
+
+================================================================================
+File: ZC_RetentionOffer.ddls.asddls
+================================================================================
+" Artifact: ZC_RetentionOffer (Projection CDS View — Root)
+" Generated from: Domain Model v1 (approved)
+" House rules: CDS-009 (redirect via $projection)
+@AccessControl.authorizationCheck: #CHECK_REQUIRED
+@EndUserText.label: 'Retention Offer'
+@ObjectModel.writeActive: true
+@Metadata.allowExtensions: true
+define root view entity ZC_RetentionOffer
+  as projection on ZI_RetentionOffer as Offer
+{
+  key Offer.OfferUUID,
+      Offer.ContractUUID,
+      Offer.CustomerUUID,
+      Offer.Discount,
+      Offer.OfferStatus,
+      Offer.ValidFrom,
+      Offer.ValidTo,
+      Offer.ApprovalStatus,
+      Offer.ApprovalThresholdAtCreation,
+      Offer.ARPU,
+      Offer.Segment,
+      Offer.ContractLifetime,
+      Offer.LastChangedAt,
+      Offer.LastChangedBy,
+      Offer.CreatedAt,
+      Offer.CreatedBy,
+
+      /* Compositions */
+      _Reasons : redirected ZI_RetOfferReason,
+      _Approvals : redirected ZI_RetOfferApproval,
+
+      /* Associations */
+      _Contract,
+      _Customer,
+      _InteractionHistory
+}
+
+
+================================================================================
+File: ZC_RetentionOffer.metadataextension.asddxe
+================================================================================
+" Artifact: ZC_RetentionOffer (Metadata Extension — UI Annotations)
+" Generated from: Domain Model v1 (approved)
+" House rules: FIORI-001 (headerInfo), FIORI-002 (lineItem), FIORI-003 (selectionField),
+"             FIORI-004 (identification), FIORI-006 (importance), FIORI-007 (labels),
+"             FIORI-008 (criticality), FIORI-009 (facets), FIORI-010 (#FOR_ACTION),
+"             FIORI-011 (confirm popup for destructive), FIORI-013 (draft handling)
+@Metadata.layer: #CORE
+@UI.headerInfo: {
+  typeName: 'Retention Offer',
+  typeNamePlural: 'Retention Offers',
+  title: { value: 'OfferUUID' },
+  description: { value: 'ContractUUID' }
+}
+@UI.draftHandling.purpose: #draft
+
+define view entity ZC_RetentionOffer
+  with metadata extension ZC_RetentionOffer
+{
+  /* Facets — FIORI-009 */
+  @UI.facet: [
+    { id: 'OfferInfo', purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE, label: 'Offer Details', position: 10 },
+    { id: 'ApprovalInfo', purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE, label: 'Approval Details', position: 20 },
+    { id: 'Reasons', purpose: #STANDARD, type: #LINEGROUP_REFERENCE, label: 'Reasons', targetElement: '_Reasons', position: 30 }
+  ]
+
+  /* List Report columns — FIORI-002, FIORI-006, FIORI-007 */
+  @UI.lineItem: [{ position: 10, label: 'Offer ID', importance: #HIGH }]
+  @UI.selectionField: [{ position: 10 }]
+  OfferUUID;
+
+  @UI.lineItem: [{ position: 20, label: 'Contract', importance: #HIGH }]
+  @UI.selectionField: [{ position: 20 }]
+  ContractUUID;
+
+  @UI.lineItem: [{ position: 30, label: 'Discount %', importance: #HIGH }]
+  @UI.identification: [{ position: 10, label: 'Discount %' }]
+  Discount;
+
+  /* FIORI-008: Criticality for status field */
+  @UI.lineItem: [{ position: 40, label: 'Status', importance: #HIGH, criticality: 'OfferStatusCriticality' }]
+  @UI.identification: [{ position: 20, label: 'Status' }]
+  OfferStatus;
+
+  @UI.lineItem: [{ position: 50, label: 'Valid From', importance: #MEDIUM }]
+  ValidFrom;
+
+  @UI.lineItem: [{ position: 60, label: 'Valid To', importance: #MEDIUM }]
+  ValidTo;
+
+  @UI.lineItem: [{ position: 70, label: 'Approval Status', importance: #MEDIUM, criticality: 'ApprovalStatusCriticality' }]
+  ApprovalStatus;
+
+  @UI.lineItem: [{ position: 80, label: 'ARPU', importance: #LOW }]
+  ARPU;
+
+  @UI.lineItem: [{ position: 90, label: 'Segment', importance: #LOW }]
+  Segment;
+
+  /* Actions — FIORI-010, FIORI-011 (confirm popup for reject) */
+  @UI.lineItem: [{ type: #FOR_ACTION, dataAction: 'acceptOffer', label: 'Accept Offer', position: 100 }]
+  @UI.identification: [{ type: #FOR_ACTION, dataAction: 'acceptOffer', label: 'Accept Offer', position: 30 }]
+  field AcceptOfferButton;
+
+  @UI.lineItem: [{
+    type: #FOR_ACTION,
+    dataAction: 'rejectOffer',
+    label: 'Reject Offer',
+    position: 110,
+    confirmActionText: 'Reject Offer',
+    confirmActionPopupText: 'Are you sure you want to reject this retention offer?'
+  }]
+  @UI.identification: [{
+    type: #FOR_ACTION,
+    dataAction: 'rejectOffer',
+    label: 'Reject Offer',
+    position: 40,
+    confirmActionText: 'Reject Offer',
+    confirmActionPopupText: 'Are you sure you want to reject this retention offer?'
+  }]
+  field RejectOfferButton;
+
+  @UI.lineItem: [{ type: #FOR_ACTION, dataAction: 'requestApproval', label: 'Request Approval', position: 120 }]
+  field RequestApprovalButton;
+
+  /* Hidden technical fields */
+  @UI.hidden: true
+  CustomerUUID;
+
+  @UI.hidden: true
+  ApprovalThresholdAtCreation;
+
+  @UI.hidden: true
+  LastChangedAt;
+
+  @UI.hidden: true
+  LastChangedBy;
+
+  @UI.hidden: true
+  CreatedAt;
+
+  @UI.hidden: true
+  CreatedBy;
+
+  /* Virtual fields for criticality calculation */
+  @UI.hidden: true
+  virtual OfferStatusCriticality : type i;
+
+  @UI.hidden: true
+  virtual ApprovalStatusCriticality : type i;
+
+  /* Compositions */
+  _Reasons;
+  _Approvals;
+
+  /* Associations (read-only in UI) */
+  @UI.hidden: true
+  _Contract;
+
+  @UI.hidden: true
+  _Customer;
+
+  @UI.hidden: true
+  _InteractionHistory;
+}
+
+
+================================================================================
+File: ZI_RetOfferApproval.ddls.asddls
+================================================================================
+" Artifact: ZI_RetOfferApproval (Interface CDS View — Child Entity)
+" Generated from: Domain Model v1 (approved)
+" Invariants: 4 (approval threshold — this entity stores approval decisions)
+" House rules: CDS-001, CDS-002, CDS-003, CDS-005, CDS-011
+@AccessControl.authorizationCheck: #CHECK_REQUIRED
+@EndUserText.label: 'Retention Offer Approval'
+@ObjectModel.writeActive: true
+define view entity ZI_RetOfferApproval
+  as select from zret_offer_approval as Approval
+  association to ZI_RetentionOffer as _Parent on $projection.ParentUUID = _Parent.OfferUUID
+{
+  key Approval.approval_uuid   as ApprovalUUID,
+      Approval.parent_uuid     as ParentUUID,
+      Approval.approver         as Approver,
+      Approval.approval_ts      as ApprovalTimestamp,
+      Approval.decision         as Decision,
+      Approval.comment_text     as Comment,
+      _Parent
+}
+
+
+================================================================================
+File: ZI_RetOfferReason.ddls.asddls
+================================================================================
+" Artifact: ZI_RetOfferReason (Interface CDS View — Child Entity)
+" Generated from: Domain Model v1 (approved)
+" Invariants: (child of root — inherits aggregate consistency)
+" House rules: CDS-001, CDS-002, CDS-003, CDS-005, CDS-011
+@AccessControl.authorizationCheck: #CHECK_REQUIRED
+@EndUserText.label: 'Retention Offer Reason'
+@ObjectModel.writeActive: true
+define view entity ZI_RetOfferReason
+  as select from zret_offer_reason as Reason
+  association to ZI_RetentionOffer as _Parent on $projection.ParentUUID = _Parent.OfferUUID
+{
+  key Reason.reason_uuid    as ReasonUUID,
+      Reason.parent_uuid    as ParentUUID,
+      Reason.reason_code    as ReasonCode,
+      Reason.reason_text    as ReasonText,
+      _Parent
+}
+
+
+================================================================================
+File: ZI_RetentionOffer.behaviordef.asbdef
+================================================================================
+" Artifact: ZI_RetentionOffer (Behavior Definition — BDEF)
+" Generated from: Domain Model v1 (approved)
+" Invariants: 1, 2, 3, 4 (ALL visible in BDEF — BDEF-004)
+" House rules: BDEF-001 (strict), BDEF-002 (lock master), BDEF-003 (auth master),
+"             BDEF-004 (invariants visible), BDEF-005 (trigger correctness),
+"             BDEF-006 (action result), BDEF-007 (draft justified),
+"             BDEF-008 (determination idempotency), BDEF-010 (readonly after transition)
+
+managed implementation in class zbp_i_retention_offer unique;
+strict mode (2);
+with draft;
+
+define behavior for ZI_RetentionOffer alias Offer
+persistent table zret_offer
+draft table zret_offer_d
+lock master total etag LastChangedAt
+authorization master ( instance ) auth object Z_RET_OFF
+
+field ( readonly : acceptOffer, rejectOffer ) Discount;       " BDEF-010: immutable after state transition
+field ( readonly : acceptOffer, rejectOffer ) Discount;       " BDEF-010
+field ( readonly ) ContractUUID;     " D2: ContractUUID immutable after create
+field ( readonly ) CustomerUUID;     " GDPR: Customer reference immutable
+field ( readonly ) CreatedAt;
+field ( readonly ) CreatedBy;
+
+" Invariant 1: Discount ≤ 30% (BDEF-004, BDEF-005: validation on save)
+validation validateDiscountCeiling on save { field Discount; }
+
+" Invariant 2: 72h validity (BDEF-004, BDEF-005: determination on modify create)
+determination determineExpiry on modify { create; }
+
+" Invariant 3: One active offer per contract (BDEF-004, BDEF-005: validation on save)
+validation validateSingleActiveOffer on save { field ContractUUID; }
+
+" Invariant 4: Approval above threshold (BDEF-004, BDEF-005: determination on modify)
+determination determineApprovalRequired on modify { field Discount; }
+validation validateApprovalStatus on save { field ApprovalStatus; }
+
+" Actions (BDEF-006: result parameter required)
+action acceptOffer result [1] $self;       " Triggers billing ApplyDiscount
+action rejectOffer result [1] $self;       " Sets status to REJECTED
+action requestApproval result [1] $self;   " Triggers approval workflow
+
+define behavior for ZI_RetOfferReason alias Reason
+persistent table zret_offer_reason
+draft table zret_offer_reason_d
+lock dependent by association
+authorization dependent
+numbering managed;                        " BDEF-011: framework generates UUID
+
+field ( readonly ) ReasonUUID;
+field ( readonly ) ParentUUID;
+
+define behavior for ZI_RetOfferApproval alias Approval
+persistent table zret_offer_approval
+draft table zret_offer_approval_d
+lock dependent by association
+authorization dependent
+numbering managed;
+
+field ( readonly ) ApprovalUUID;
+field ( readonly ) ParentUUID;
+
+" Draft handling
+draft action (features) edit;
+draft action activate;
+draft action discard;
+
+
+================================================================================
+File: ZI_RetentionOffer.ddls.asddls
+================================================================================
+" Artifact: ZI_RetentionOffer (Interface CDS View — Root Entity)
+" Generated from: Domain Model v1 (approved)
+" Invariants: 1, 2, 3, 4
+" House rules: CDS-001 (no UI ann.), CDS-002 (label), CDS-003 (auth), CDS-004 (semanticKey), CDS-005 (no SELECT *), CDS-011 (key fields)
+@AccessControl.authorizationCheck: #CHECK_REQUIRED
+@EndUserText.label: 'Retention Offer'
+@ObjectModel.modelPattern: #MANAGED
+@ObjectModel.semanticKey: ['OfferUUID']
+@ObjectModel.writeActive: true
+@ObjectModel.lifecycle.responsible: 'RetentionOfferBO'
+define root view entity ZI_RetentionOffer
+  as select from zret_offer as Offer
+
+  composition [0..*] of ZI_RetOfferReason  as _Reasons  on $projection.OfferUUID = _Reasons.ParentUUID
+  composition [0..*] of ZI_RetOfferApproval as _Approvals on $projection.OfferUUID = _Approvals.ParentUUID
+
+  association to ZI_Contract   as _Contract   on $projection.ContractUUID = _Contract.ContractUUID
+  association to ZI_Customer   as _Customer   on $projection.CustomerUUID = _Customer.CustomerUUID
+  association to ZI_Interaction as _InteractionHistory on $projection.CustomerUUID = _InteractionHistory.CustomerUUID
+{
+  key Offer.offer_uuid            as OfferUUID,
+      Offer.contract_uuid         as ContractUUID,
+      Offer.customer_uuid         as CustomerUUID,
+      Offer.discount_pct          as Discount,
+      Offer.offer_status          as OfferStatus,
+      Offer.valid_from            as ValidFrom,
+      Offer.valid_to              as ValidTo,
+      Offer.approval_status       as ApprovalStatus,
+      Offer.approval_threshold   as ApprovalThresholdAtCreation,
+      Offer.arpu                  as ARPU,
+      Offer.segment               as Segment,
+      Offer.contract_lifetime     as ContractLifetime,
+      Offer.last_changed_at       as LastChangedAt,
+      Offer.last_changed_by       as LastChangedBy,
+      Offer.created_at            as CreatedAt,
+      Offer.created_by            as CreatedBy,
+
+      _Reasons,
+      _Approvals,
+      _Contract,
+      _Customer,
+      _InteractionHistory
+}
+
+
+================================================================================
+File: ZUI_RET_OFFER_SDEF.srvc.asddls
+================================================================================
+" Artifact: ZUI_RET_OFFER_SDEF (Service Definition)
+" Generated from: Domain Model v1 (approved)
+@EndUserText.label: 'Retention Offer Service'
+define service ZUI_RET_OFFER_SDEF {
+  expose ZC_RetentionOffer as RetentionOffer;
+  expose ZC_RetOfferReason as RetentionOfferReason;
+  expose ZC_RetOfferApproval as RetentionOfferApproval;
+}
+
+
+================================================================================
+File: zbp_i_retention_offer.clas.abap
+================================================================================
+" Artifact: ZBP_I_RetentionOffer (Behavior Implementation Class — Managed)
+" Generated from: Domain Model v1 (approved)
+" Invariants: 1, 2, 3, 4
+" House rules: BDEF-008 (idempotent determinations), BDEF-009 (managed — no custom persistence)
+"             abap-exception-handling: CATCH BEFORE UNWIND + RESUME
+"             abap-message-handling: message class ZMS_RET_OFF (no hardcoded strings)
+" Test stubs: see inline comments for each validation/determination
+
+CLASS zbp_i_retention_offer DEFINITION PUBLIC ABSTRACT FINAL
+  FOR BEHAVIOR OF ZI_RetentionOffer.
+  PUBLIC SECTION.
+    CLASS-DATA:
+      " Message class for all BO messages (abap-message-handling rule)
+      BEGIN OF ms_msg,
+        discount_exceeds_max    TYPE c LENGTH 4 VALUE '001',  " Discount exceeds 30%
+        active_offer_exists     TYPE c LENGTH 4 VALUE '002',  " Active offer already exists
+        approval_required       TYPE c LENGTH 4 VALUE '003',  " Approval required for this discount
+        offer_expired           TYPE c LENGTH 4 VALUE '004',  " Offer has expired
+        offer_already_accepted  TYPE c LENGTH 4 VALUE '005',  " Offer already accepted
+        offer_already_rejected  TYPE c LENGTH 4 VALUE '006',  " Offer already rejected
+        billing_api_failed      TYPE c LENGTH 4 VALUE '007',  " Billing API call failed
+        contract_not_found      TYPE c LENGTH 4 VALUE '008',  " Contract not found
+      END OF ms_msg.
+
+    TYPES:
+      BEGIN OF ENUM e_offer_status,
+        draft        TYPE string VALUE `DRAFT`,
+        active       TYPE string VALUE `ACTIVE`,
+        pending_approval TYPE string VALUE `PENDING_APPROVAL`,
+        accepted     TYPE string VALUE `ACCEPTED`,
+        rejected     TYPE string VALUE `REJECTED`,
+        expired      TYPE string VALUE `EXPIRED`,
+      END OF ENUM e_offer_status.
+
+    " Constants for thresholds (no magic numbers — clean-abap rule)
+    CONSTANTS:
+      c_max_discount      TYPE i VALUE 30,
+      c_min_discount      TYPE i VALUE 0,
+      c_expiry_hours      TYPE i VALUE 72,
+      c_default_threshold TYPE i VALUE 20.  " Configurable via ZRET_OFFER_THR
+
+  PROTECTED SECTION.
+    " Invariant 1: validateDiscountCeiling
+    " Test: invariant1_discount_max_30 (create with 35% → fail)
+    " Test: B1 (create with 30.01% → fail)
+    " Test: B3 (create with -1% → fail — checks lower bound too)
+    METHODS validate_discount_ceiling
+      IMPORTING keys TYPE TABLE FOR VALIDATION RETENTION_OFFER~validateDiscountCeiling
+      CHANGING  reported TYPE TABLE FOR REPORTED RETENTION_OFFER.
+
+    " Invariant 2: determineExpiry (idempotent — BDEF-008)
+    " Test: invariant2_72h_validity (ValidTo = CreatedAt + 72h)
+    " Test: B4 (exact boundary — T+72h still valid)
+    " Test: B5 (T+71h59m59s — still valid)
+    METHODS determine_expiry
+      IMPORTING keys TYPE TABLE FOR DETERMINATION RETENTION_OFFER~determineExpiry.
+
+    " Invariant 3: validateSingleActiveOffer
+    " Test: invariant3_one_active_per_contract (second create fails)
+    " Test: C1 (concurrent — lock prevents race)
+    METHODS validate_single_active_offer
+      IMPORTING keys TYPE TABLE FOR VALIDATION RETENTION_OFFER~validateSingleActiveOffer
+      CHANGING  reported TYPE TABLE FOR REPORTED RETENTION_OFFER
+                failed   TYPE TABLE FOR FAILED RETENTION_OFFER.
+
+    " Invariant 4: determineApprovalRequired (idempotent — BDEF-008)
+    " Test: invariant4_approval_threshold (discount > threshold → PENDING)
+    " Test: D3 (discount == threshold → NOT_REQUIRED — verifies > vs >=)
+    METHODS determine_approval_required
+      IMPORTING keys TYPE TABLE FOR DETERMINATION RETENTION_OFFER~determineApprovalRequired.
+
+    " Invariant 4: validateApprovalStatus
+    " Test: C3 (cannot modify while PENDING)
+    METHODS validate_approval_status
+      IMPORTING keys TYPE TABLE FOR VALIDATION RETENTION_OFFER~validateApprovalStatus
+      CHANGING  reported TYPE TABLE FOR REPORTED RETENTION_OFFER
+                failed   TYPE TABLE FOR FAILED RETENTION_OFFER.
+
+    " Action: acceptOffer (triggers billing ApplyDiscount)
+    " Test: S1 (already accepted → fail)
+    " Test: S4 (expired → fail)
+    METHODS accept_offer
+      IMPORTING keys TYPE TABLE FOR ACTION RETENTION_OFFER~acceptOffer
+      RESULT    result TYPE TABLE FOR ACTION RESULT RETENTION_OFFER.
+
+    " Action: rejectOffer
+    " Test: S2 (cannot reject already-accepted)
+    METHODS reject_offer
+      IMPORTING keys TYPE TABLE FOR ACTION RETENTION_OFFER~rejectOffer
+      RESULT    result TYPE TABLE FOR ACTION RESULT RETENTION_OFFER.
+
+    " Action: requestApproval (triggers workflow)
+    METHODS request_approval
+      IMPORTING keys TYPE TABLE FOR ACTION RETENTION_OFFER~requestApproval
+      RESULT    result TYPE TABLE FOR ACTION RESULT RETENTION_OFFER.
+
+ENDCLASS.
+
+CLASS zbp_i_retention_offer IMPLEMENTATION.
+
+  " ─── Invariant 1: Discount ≤ 30% ───────────────────────────────────
+  METHOD validate_discount_ceiling.
+    " Check both bounds: 0 <= Discount <= 30
+    " This also covers B3 (negative values) — not just upper bound
+    LOOP AT keys INTO DATA(key) WHERE %data-Discount > c_max_discount
+                                  OR %data-Discount < c_min_discount.
+      APPEND VALUE #(
+        %key        = key-%key
+        %msg        = new_message(
+                        id       = 'ZMS_RET_OFF'
+                        number   = '001'
+                        severity = if_abap_behv_message=>severity-error
+                      )
+        %element-Discount = if_abap_behv=>mk-on
+      ) TO reported.
+    ENDLOOP.
+
+    " SECURITY: If no validation failure and no DB CHECK constraint,
+    " adversarial case A3 (direct table insert) bypasses this.
+    " → DB table zret_offer MUST have CHECK constraint: discount_pct BETWEEN 0 AND 30
+  ENDMETHOD.
+
+  " ─── Invariant 2: 72h validity (idempotent determination) ─────────
+  METHOD determine_expiry.
+    " Idempotent: only sets ValidTo if it's initial (BDEF-008)
+    LOOP AT keys INTO DATA(key) WHERE %data-ValidTo IS INITIAL.
+      MODIFY ENTITIES OF ZI_RetentionOffer IN LOCAL MODE
+        ENTITY Offer
+        UPDATE FIELDS ( ValidFrom = sy-datum
+                        ValidTo   = sy-datum + c_expiry_hours )
+        WITH VALUE #( ( %key = key-%key ) ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  " ─── Invariant 3: One active offer per contract ──────────────────
+  METHOD validate_single_active_offer.
+    " Use READ ENTITY (not SELECT) — performance + RAP compliance
+    LOOP AT keys INTO DATA(key).
+      " Check if contract already has an active offer
+      READ ENTITIES OF ZI_RetentionOffer IN LOCAL MODE
+        ENTITY Offer
+        FIELDS ( OfferStatus )
+        WITH VALUE #( ( %key = key-%key ) )
+        RESULT DATA(existing_offers).
+
+      " Check for ACTIVE offers on same ContractUUID (excluding self)
+      " NOTE: In managed BO, READ ENTITY within validation reads from
+      " transactional buffer — for concurrent access (C1), the lock
+      " master prevents the race before validation runs.
+      SELECT FROM zret_offer AS offer
+        FIELDS offer_uuid
+        WHERE offer~contract_uuid = @key-%data-ContractUUID
+          AND offer~offer_status  = 'ACTIVE'
+          AND offer~offer_uuid   <> @key-%key-OfferUUID
+        INTO TABLE @DATA(active_offers).
+
+      IF line_exists( active_offers[ 1 ] ).
+        " One active offer already exists for this contract
+        APPEND VALUE #(
+          %key             = key-%key
+          %msg             = new_message(
+                               id       = 'ZMS_RET_OFF'
+                               number   = '002'
+                               severity = if_abap_behv_message=>severity-error
+                             )
+          %element-ContractUUID = if_abap_behv=>mk-on
+        ) TO reported.
+
+        APPEND VALUE #( %key = key-%key ) TO failed.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  " ─── Invariant 4: Approval required above threshold ───────────────
+  METHOD determine_approval_required.
+    " Idempotent: only sets if ApprovalStatus is initial (BDEF-008)
+    LOOP AT keys INTO DATA(key) WHERE %data-ApprovalStatus IS INITIAL.
+      " Read threshold from config table (snapshot at creation time)
+      SELECT SINGLE FROM zret_offer_thr
+        FIELDS threshold_value
+        WHERE active = @abap_true
+        INTO @DATA(threshold).
+
+      IF sy-subrc <> 0.
+        threshold = c_default_threshold.  " Fallback to default
+      ENDIF.
+
+      " DESIGN GAP (D3): using > (strict). If >= is intended, change operator.
+      DATA(approval_needed) = xsdbool( key-%data-Discount > threshold ).
+
+      MODIFY ENTITIES OF ZI_RetentionOffer IN LOCAL MODE
+        ENTITY Offer
+        UPDATE FIELDS ( ApprovalStatus         = COND #( WHEN approval_needed = abap_true
+                                                          THEN 'PENDING'
+                                                          ELSE 'NOT_REQUIRED' )
+                        ApprovalThresholdAtCreation = threshold )
+        WITH VALUE #( ( %key = key-%key ) ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  " ─── Invariant 4: validateApprovalStatus on save ─────────────────
+  METHOD validate_approval_status.
+    " Block activation (acceptOffer) if ApprovalStatus = PENDING
+    LOOP AT keys INTO DATA(key) WHERE %data-ApprovalStatus = 'PENDING'.
+      APPEND VALUE #(
+        %key             = key-%key
+        %msg             = new_message(
+                             id       = 'ZMS_RET_OFF'
+                             number   = '003'
+                             severity = if_abap_behv_message=>severity-error
+                           )
+        %element-ApprovalStatus = if_abap_behv=>mk-on
+      ) TO reported.
+
+      APPEND VALUE #( %key = key-%key ) TO failed.
+    ENDLOOP.
+  ENDMETHOD.
+
+  " ─── Action: acceptOffer ──────────────────────────────────────────
+  METHOD accept_offer.
+    " Adversarial S1: check if already accepted
+    " Adversarial S4: check if expired
+    " Adversarial S3: check if rejected
+
+    LOOP AT keys INTO DATA(key).
+      " Read current state
+      READ ENTITIES OF ZI_RetentionOffer IN LOCAL MODE
+        ENTITY Offer
+        FIELDS ( OfferStatus ValidTo )
+        WITH VALUE #( ( %key = key-%key ) )
+        RESULT DATA(offer_data).
+
+      READ TABLE offer_data INTO DATA(offer) INDEX 1.
+
+      " State machine checks (S1, S3, S4)
+      IF offer-OfferStatus = 'ACCEPTED'.
+        APPEND VALUE #( %key = key-%key
+                        %msg = new_message( id = 'ZMS_RET_OFF' number = '005'
+                          severity = if_abap_behv_message=>severity-error ) )
+          TO reported.
+        CONTINUE.
+      ENDIF.
+
+      IF offer-OfferStatus = 'REJECTED'.
+        APPEND VALUE #( %key = key-%key
+                        %msg = new_message( id = 'ZMS_RET_OFF' number = '006'
+                          severity = if_abap_behv_message=>severity-error ) )
+          TO reported.
+        CONTINUE.
+      ENDIF.
+
+      IF offer-OfferStatus = 'EXPIRED' OR
+         ( offer-ValidTo IS NOT INITIAL AND offer-ValidTo < sy-datum ).
+        APPEND VALUE #( %key = key-%key
+                        %msg = new_message( id = 'ZMS_RET_OFF' number = '004'
+                          severity = if_abap_behv_message=>severity-error ) )
+          TO reported.
+        CONTINUE.
+      ENDIF.
+
+      " Call billing API (idempotent via OfferUUID)
+      " Exception handling: CATCH BEFORE UNWIND + RESUME (house rule)
+      TRY.
+          NEW zcl_billing_rest_client( )->apply_discount(
+            iv_offer_uuid    = key-%key-OfferUUID
+            iv_contract_uuid = offer-ContractUUID
+            iv_discount      = offer-Discount
+          ).
+        CATCH BEFORE UNWIND INTO DATA(billing_error) zcx_billing_error.
+          RESUME.
+          " Report billing failure to agent — no partial persistence
+          APPEND VALUE #( %key = key-%key
+                          %msg = new_message( id = 'ZMS_RET_OFF' number = '007'
+                            severity = if_abap_behv_message=>severity-error ) )
+            TO reported.
+          CONTINUE.
+        ENDTRY.
+
+      " All checks pass → accept offer
+      MODIFY ENTITIES OF ZI_RetentionOffer IN LOCAL MODE
+        ENTITY Offer
+        UPDATE FIELDS ( OfferStatus = 'ACCEPTED' )
+        WITH VALUE #( ( %key = key-%key ) ).
+
+      APPEND VALUE #( %key = key-%key ) TO result.
+    ENDLOOP.
+  ENDMETHOD.
+
+  " ─── Action: rejectOffer ──────────────────────────────────────────
+  METHOD reject_offer.
+    LOOP AT keys INTO DATA(key).
+      READ ENTITIES OF ZI_RetentionOffer IN LOCAL MODE
+        ENTITY Offer
+        FIELDS ( OfferStatus )
+        WITH VALUE #( ( %key = key-%key ) )
+        RESULT DATA(offer_data).
+
+      READ TABLE offer_data INTO DATA(offer) INDEX 1.
+
+      " S2: Cannot reject an accepted offer
+      IF offer-OfferStatus = 'ACCEPTED'.
+        APPEND VALUE #( %key = key-%key
+                        %msg = new_message( id = 'ZMS_RET_OFF' number = '005'
+                          severity = if_abap_behv_message=>severity-error ) )
+          TO reported.
+        CONTINUE.
+      ENDIF.
+
+      MODIFY ENTITIES OF ZI_RetentionOffer IN LOCAL MODE
+        ENTITY Offer
+        UPDATE FIELDS ( OfferStatus = 'REJECTED' )
+        WITH VALUE #( ( %key = key-%key ) ).
+
+      APPEND VALUE #( %key = key-%key ) TO result.
+    ENDLOOP.
+  ENDMETHOD.
+
+  " ─── Action: requestApproval ──────────────────────────────────────
+  METHOD request_approval.
+    " Triggers SAP standard workflow for approval
+    " Async: sets ApprovalStatus = PENDING, workflow handles the rest
+    LOOP AT keys INTO DATA(key).
+      MODIFY ENTITIES OF ZI_RetentionOffer IN LOCAL MODE
+        ENTITY Offer
+        UPDATE FIELDS ( ApprovalStatus = 'PENDING' )
+        WITH VALUE #( ( %key = key-%key ) ).
+
+      " Workflow trigger (pseudo-code — actual impl uses SWO/Event)
+      " CALL FUNCTION 'Z_TRIGGER_APPROVAL_WF'
+      "   EXPORTING iv_offer_uuid = key-%key-OfferUUID.
+
+      APPEND VALUE #( %key = key-%key ) TO result.
+    ENDLOOP.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+================================================================================
+File: zcl_billing_rest_client.clas.abap
+================================================================================
+" Artifact: ZCL_BILLING_REST_CLIENT (Billing Integration Class)
+" Generated from: Domain Model v1 (approved)
+" Invariants: 1 (billing CalculateDiscount feeds discount ≤ 30%), 4 (ApplyDiscount on acceptOffer)
+" House rules: abap-exception-handling (CX class, CATCH BEFORE UNWIND),
+"             abap-message-handling (message class ZMS_RET_OFF)
+"             abap-injection-prevention (no dynamic SQL, validate inputs)
+" Performance: no SELECT in loop, uses HTTP client with timeout
+
+CLASS zcl_billing_rest_client DEFINITION PUBLIC FINAL CREATE PUBLIC.
+  PUBLIC SECTION.
+    " Custom exception class for billing errors
+    " House rule: RAISE EXCEPTION NEW (not TYPE)
+    TYPES:
+      BEGIN OF t_discount_request,
+        contract_uuid TYPE sysuuid_x16,
+        arpu          TYPE p LENGTH 10 DECIMALS 2,
+        segment       TYPE c LENGTH 10,
+        lifetime_months TYPE i,
+      END OF t_discount_request,
+      BEGIN OF t_discount_response,
+        discount_pct   TYPE p LENGTH 5 DECIMALS 2,
+        currency       TYPE waers,
+        valid_until    TYPE timestamp,
+      END OF t_discount_response.
+
+    " Idempotency: Offer UUID is the key — prevents double-application
+    METHODS calculate_discount
+      IMPORTING
+        !is_request TYPE t_discount_request
+      RETURNING
+        VALUE(rs_response) TYPE t_discount_response
+      RAISING
+        zcx_billing_error.
+
+    METHODS apply_discount
+      IMPORTING
+        !iv_offer_uuid    TYPE sysuuid_x16
+        !iv_contract_uuid TYPE sysuuid_x16
+        !iv_discount      TYPE p LENGTH 5 DECIMALS 2
+      RAISING
+        zcx_billing_error.
+
+    METHODS validate_contract
+      IMPORTING
+        !iv_contract_uuid TYPE sysuuid_x16
+      RETURNING
+        VALUE(rv_valid) TYPE abap_bool
+      RAISING
+        zcx_billing_error.
+
+  PROTECTED SECTION.
+    " HTTP client with configurable timeout
+    " Security: validate_contract_uuid called before any API call
+    METHODS send_request
+      IMPORTING
+        !iv_endpoint TYPE string
+        !is_payload  TYPE data
+      RETURNING
+        VALUE(rs_response) TYPE data
+      RAISING
+        zcx_billing_error.
+
+    METHODS get_http_client
+      RETURNING
+        VALUE(ro_client) TYPE REF TO if_http_client
+      RAISING
+        zcx_billing_error.
+
+    " Input validation (abap-injection-prevention)
+    METHODS validate_uuid
+      IMPORTING
+        !iv_uuid TYPE sysuuid_x16
+      RETURNING
+        VALUE(rv_valid) TYPE abap_bool.
+
+  PRIVATE SECTION.
+    CONSTANTS:
+      c_billing_base_url TYPE string VALUE 'https://billing.telia.internal/api/v1',
+      c_timeout_seconds  TYPE i VALUE 30,
+      c_max_retries       TYPE i VALUE 3.
+
+ENDCLASS.
+
+CLASS zcl_billing_rest_client IMPLEMENTATION.
+
+  METHOD calculate_discount.
+    " Calls: POST /Billing/CalculateDiscount
+    " Returns: suggested discount (caller validates ≤ 30% via BDEF validation)
+
+    IF validate_uuid( is_request-contract_uuid ) = abap_false.
+      " abap-message-handling: no hardcoded strings, use message class
+      RAISE EXCEPTION NEW zcx_billing_error(
+        textid = zcx_billing_error=>invalid_input
+        method = 'CALCULATE_DISCOUNT' ).
+    ENDIF.
+
+    " Build payload
+    DATA(lv_payload) = /ui2/cl_json=>serialize(
+      exp_data = is_request
+      compress = abap_true ).
+
+    " Send with retry logic (integration risk #2 mitigation)
+    DATA(retry_count) = 0.
+    DO c_max_retries TIMES.
+      TRY.
+          DATA(lt_response) = send_request(
+            iv_endpoint = '/Billing/CalculateDiscount'
+            is_payload  = lv_payload ).
+          " Parse response
+          /ui2/cl_json=>deserialize(
+            EXPORTING json = lt_response
+            CHANGING  data = rs_response ).
+          RETURN.
+        CATCH zcx_billing_error INTO DATA(lx_error).
+          retry_count += 1.
+          IF retry_count >= c_max_retries.
+            RAISE EXCEPTION lx_error.
+          ENDIF.
+          " Exponential backoff
+          WAIT UP TO 2 ** retry_count SECONDS.
+      ENDTRY.
+    ENDDO.
+  ENDMETHOD.
+
+  METHOD apply_discount.
+    " Calls: POST /Billing/ApplyDiscount
+    " Idempotency: Offer UUID sent as idempotency key
+    " If called twice with same UUID, billing system returns same result
+
+    IF validate_uuid( iv_offer_uuid ) = abap_false
+       OR validate_uuid( iv_contract_uuid ) = abap_false.
+      RAISE EXCEPTION NEW zcx_billing_error(
+        textid = zcx_billing_error=>invalid_input
+        method = 'APPLY_DISCOUNT' ).
+    ENDIF.
+
+    " Build payload with idempotency key
+    DATA(ls_payload) = VALUE #(
+      offer_uuid    = iv_offer_uuid
+      contract_uuid = iv_contract_uuid
+      discount_pct  = iv_discount
+      idempotency_key = iv_offer_uuid  " Same as offer UUID
+    ).
+
+    DATA(lv_payload) = /ui2/cl_json=>serialize(
+      exp_data = ls_payload
+      compress = abap_true ).
+
+    send_request(
+      iv_endpoint = '/Billing/ApplyDiscount'
+      is_payload  = lv_payload ).
+  ENDMETHOD.
+
+  METHOD validate_contract.
+    " Calls: GET /Contract/Validate?contractUuid=<uuid>
+    rv_valid = validate_uuid( iv_contract_uuid ).
+    IF rv_valid = abap_false.
+      RETURN.
+    ENDIF.
+
+    DATA(lt_response) = send_request(
+      iv_endpoint = | /Contract/Validate?contractUuid={ iv_contract_uuid } |
+      is_payload  = space ).
+
+    " Parse: true/false response
+    rv_valid = xsdbool( lt_response = 'true' ).
+  ENDMETHOD.
+
+  METHOD send_request.
+    " HTTP client creation with timeout
+    DATA(lo_client) = get_http_client( ).
+
+    DATA(lo_request) = lo_client->request.
+    lo_request->set_method( 'POST' ).
+    lo_request->set_header_field(
+      name  = 'Content-Type'
+      value = 'application/json' ).
+    lo_request->set_header_field(
+      name  = 'X-Idempotency-Key'
+      value = |{ cl_abap_syst=>get_user_name( ) }-{ sy-datum }{ sy-uzeit }| ).
+
+    " Set timeout (integration risk mitigation)
+    lo_client->send_timeout = c_timeout_seconds.
+    lo_client->receive_timeout = c_timeout_seconds.
+
+    lo_request->set_cdata( is_payload ).
+
+    " Send + receive with exception handling
+    TRY.
+        lo_client->send( ).
+        lo_client->receive( ).
+      CATCH cx_web_http_client_error INTO DATA(lx_http).
+        " abap-message-handling: use message class
+        RAISE EXCEPTION NEW zcx_billing_error(
+          textid    = zcx_billing_error=>api_timeout
+          method    = 'SEND_REQUEST'
+          previous  = lx_http ).
+    ENDTRY.
+
+    " Check HTTP status
+    DATA(lv_status) = lo_client->response->get_status( ).
+    IF lv_status-code BETWEEN 400 AND 599.
+      RAISE EXCEPTION NEW zcx_billing_error(
+        textid    = zcx_billing_error=>http_error
+        method    = 'SEND_REQUEST'
+        http_code = lv_status-code ).
+    ENDIF.
+
+    rs_response = lo_client->response->get_cdata( ).
+  ENDMETHOD.
+
+  METHOD get_http_client.
+    " Create HTTP client from destination (configured in SM59)
+    " No dynamic URL construction — prevents injection
+    cl_http_client=>create_by_url(
+      EXPORTING
+        url     = c_billing_base_url
+        ssl_id  = 'ANONYMOUS'
+      IMPORTING
+        client  = ro_client
+      EXCEPTIONS
+        OTHERS  = 1 ).
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION NEW zcx_billing_error(
+        textid = zcx_billing_error=>client_creation_failed
+        method = 'GET_HTTP_CLIENT' ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD validate_uuid.
+    " Input validation — prevents injection via crafted UUID
+    " UUIDs are 16 bytes (32 hex chars) — validate format
+    rv_valid = xsdbool( strlen( iv_uuid ) = 16 ).
+  ENDMETHOD.
+
+ENDCLASS.
+

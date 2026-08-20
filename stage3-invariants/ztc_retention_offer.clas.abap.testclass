@@ -1,0 +1,656 @@
+" Test Class: ZTC_RETENTION_OFFER
+" Generated from: Domain Model v1 (approved), Invariants 1-4
+" Adversarial cases: 13 (from agent-attack-simulator — P0 + P1)
+" Coverage: 4/4 invariants, 13/13 adversarial
+" Status: UNVERIFIED (no SAP system available — generated but not executed)
+
+CLASS ztc_retention_offer DEFINITION FOR TESTING
+  DURATION SHORT RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+
+    " ═══ Given-When-Then Helpers ═══════════════════════════════════════
+
+    " Given: contract termination request exists for a customer
+    METHODS given_contract_termination_request
+      IMPORTING iv_contract_uuid TYPE sysuuid_x16 OPTIONAL
+      EXPORTING ev_contract_uuid TYPE sysuuid_x16.
+
+    " Given: an active offer exists on a contract
+    METHODS given_active_offer_on_contract
+      IMPORTING iv_contract_uuid TYPE sysuuid_x16
+                iv_discount      TYPE p LENGTH 5 DECIMALS 2 DEFAULT 15
+      EXPORTING ev_offer_uuid    TYPE sysuuid_x16.
+
+    " When: create a retention offer via EML
+    METHODS when_create_offer
+      IMPORTING iv_contract_uuid TYPE sysuuid_x16
+                iv_discount      TYPE p LENGTH 5 DECIMALS 2
+      EXPORTING ev_offer_uuid    TYPE sysuuid_x16
+                et_reported      TYPE ANY TABLE
+                et_failed        TYPE ANY TABLE.
+
+    " When: accept an offer via EML action
+    METHODS when_accept_offer
+      IMPORTING iv_offer_uuid TYPE sysuuid_x16
+      EXPORTING et_reported   TYPE ANY TABLE
+                et_failed     TYPE ANY TABLE.
+
+    " Then: assert validation failed
+    METHODS then_assert_validation_failed
+      IMPORTING it_failed TYPE ANY TABLE.
+
+    " Then: assert validation succeeded (no failures)
+    METHODS then_assert_no_failures
+      IMPORTING it_failed TYPE ANY TABLE.
+
+    " Setup: clean test data before each test
+    METHODS setup.
+
+    " ═══ Invariant Tests ══════════════════════════════════════════════
+
+    " Invariant 1: Discount ≤ 30%
+    METHODS invariant1_discount_max_30 FOR TESTING.
+
+    " Invariant 2: 72h validity
+    METHODS invariant2_72h_validity FOR TESTING.
+
+    " Invariant 3: One active offer per contract
+    METHODS invariant3_one_active_per_contract FOR TESTING.
+
+    " Invariant 4: Approval above threshold
+    METHODS invariant4_approval_threshold FOR TESTING.
+
+    " ═══ Adversarial Tests — PRIORITY 0 ═══════════════════════════════
+
+    " B1: Discount = 30.01% → save fails
+    METHODS adv_b1_discount_30_01 FOR TESTING.
+
+    " B3: Discount = -1% → save fails (lower bound)
+    METHODS adv_b3_discount_negative FOR TESTING.
+
+    " S1: acceptOffer on already-accepted → fails
+    METHODS adv_s1_accept_already_accepted FOR TESTING.
+
+    " S4: acceptOffer on expired → fails
+    METHODS adv_s4_accept_expired FOR TESTING.
+
+    " D1: non-existent contract UUID → fails
+    METHODS adv_d1_nonexistent_contract FOR TESTING.
+
+    " D3: discount == threshold → no approval (tests > vs >=)
+    METHODS adv_d3_threshold_boundary FOR TESTING.
+
+    " A1: no auth → create fails
+    METHODS adv_a1_no_authorization FOR TESTING.
+
+    " C1: concurrent creation on same contract → lock conflict
+    " NOTE: Requires MUAC — marked as integration test
+    METHODS adv_c1_concurrent_creation FOR TESTING.
+
+    " ═══ Adversarial Tests — PRIORITY 1 ═══════════════════════════════
+
+    " B4: exact 72h boundary
+    METHODS adv_b4_exact_72h_boundary FOR TESTING.
+
+    " S2: rejectOffer on accepted → fails
+    METHODS adv_s2_reject_accepted FOR TESTING.
+
+    " S3: acceptOffer on rejected → fails
+    METHODS adv_s3_accept_rejected FOR TESTING.
+
+    " C3: modify discount while approval pending
+    METHODS adv_c3_modify_while_pending FOR TESTING.
+
+    " D2: modify ContractUUID → readonly fails
+    METHODS adv_d2_modify_contract_uuid FOR TESTING.
+
+ENDCLASS.
+
+CLASS ztc_retention_offer IMPLEMENTATION.
+
+  METHOD setup.
+    " Clean up test data before each test (isolation)
+    DELETE FROM zret_offer WHERE created_by = @sy-uname.
+    DELETE FROM zret_offer_reason WHERE parent_uuid IN (
+      SELECT offer_uuid FROM zret_offer WHERE created_by = @sy-uname ).
+    COMMIT WORK AND WAIT.
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Given-When-Then Helpers
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD given_contract_termination_request.
+    " Create a test contract in the CRM system (or mock)
+    IF iv_contract_uuid IS INITIAL.
+      ev_contract_uuid = cl_system_uuid=>create_uuid_x16_static( ).
+    ELSE.
+      ev_contract_uuid = iv_contract_uuid.
+    ENDIF.
+    " In real test: insert test contract into mock table
+    " For demo: assume contract exists
+  ENDMETHOD.
+
+  METHOD given_active_offer_on_contract.
+    " Create an active offer via EML (uses the BO, not direct table access)
+    MODIFY ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      CREATE FIELDS ( ContractUUID Discount OfferStatus )
+      WITH VALUE #( ( %cid     = 'ACTIVE_OFFER'
+                      ContractUUID = iv_contract_uuid
+                      Discount     = iv_discount
+                      OfferStatus  = 'ACTIVE' ) )
+      CREATE BY _Reasons
+      ENTITY Reason
+      CREATE FIELDS ( ReasonCode ReasonText )
+      WITH VALUE #( ( %cid_ref = 'ACTIVE_OFFER'
+                      %target  = VALUE #( ( %cid = 'REASON_1'
+                                            ReasonCode = 'CHURN'
+                                            ReasonText = 'Customer requested termination' ) ) ) )
+      REPORTED DATA(lt_reported)
+      FAILED DATA(lt_failed)
+      MAPPED DATA(lt_mapped).
+
+    COMMIT WORK AND WAIT.
+
+    " Read back the offer UUID
+    READ ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      FIELDS ( OfferUUID )
+      WITH VALUE #( ( %cid = 'ACTIVE_OFFER' ) )
+      RESULT DATA(lt_offers).
+
+    ev_offer_uuid = lt_offers[ 1 ]-OfferUUID.
+  ENDMETHOD.
+
+  METHOD when_create_offer.
+    MODIFY ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      CREATE FIELDS ( ContractUUID Discount )
+      WITH VALUE #( ( %cid     = 'TEST_OFFER'
+                      ContractUUID = iv_contract_uuid
+                      Discount     = iv_discount ) )
+      REPORTED et_reported
+      FAILED et_failed
+      MAPPED DATA(lt_mapped).
+
+    COMMIT WORK AND WAIT.
+
+    " Read back offer UUID if successful
+    IF et_failed IS INITIAL.
+      READ ENTITIES OF zi_retention_offer
+        ENTITY Offer
+        FIELDS ( OfferUUID )
+        WITH VALUE #( ( %cid = 'TEST_OFFER' ) )
+        RESULT DATA(lt_offers).
+      ev_offer_uuid = lt_offers[ 1 ]-OfferUUID.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD when_accept_offer.
+    MODIFY ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      EXECUTE acceptOffer
+      FROM VALUE #( ( OfferUUID = iv_offer_uuid ) )
+      REPORTED et_reported
+      FAILED et_failed.
+    COMMIT WORK AND WAIT.
+  ENDMETHOD.
+
+  METHOD then_assert_validation_failed.
+    " Assert that the failed table is not initial (validation rejected)
+    cl_abap_unit_assert=>assert_not_initial( act = it_failed
+      msg = 'Expected validation to FAIL but it passed' ).
+  ENDMETHOD.
+
+  METHOD then_assert_no_failures.
+    " Assert that the failed table is initial (no failures)
+    cl_abap_unit_assert=>assert_initial( act = it_failed
+      msg = 'Expected no failures but validation failed' ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Invariant 1: Discount ≤ 30%
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD invariant1_discount_max_30.
+    " Given: contract termination request
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+
+    " When: create offer with 35% discount (exceeds max)
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = 35
+                       IMPORTING et_failed        = DATA(lt_failed) ).
+
+    " Then: validation fails
+    then_assert_validation_failed( lt_failed ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Invariant 2: 72h validity
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD invariant2_72h_validity.
+    " Given: contract termination request
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+
+    " When: create offer with valid discount
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = 15
+                       IMPORTING ev_offer_uuid    = DATA(lv_offer)
+                                 et_failed        = DATA(lt_failed) ).
+
+    " Then: no validation failures
+    then_assert_no_failures( lt_failed ).
+
+    " Then: ValidTo = CreatedAt + 72h (determination determineExpiry)
+    READ ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      FIELDS ( ValidFrom ValidTo CreatedAt )
+      WITH VALUE #( ( OfferUUID = lv_offer ) )
+      RESULT DATA(lt_offers).
+
+    DATA(ls_offer) = lt_offers[ 1 ].
+    DATA(lv_expected_valid_to) = ls_offer-CreatedAt + 72 * 3600.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_offer-ValidTo
+      exp = lv_expected_valid_to
+      msg = 'ValidTo should be CreatedAt + 72h' ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Invariant 3: One active offer per contract
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD invariant3_one_active_per_contract.
+    " Given: contract with an active offer
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+    given_active_offer_on_contract( EXPORTING iv_contract_uuid = lv_contract
+                                    IMPORTING ev_offer_uuid    = DATA(lv_existing_offer) ).
+
+    " When: create a second offer for same contract
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = 20
+                       IMPORTING et_failed        = DATA(lt_failed) ).
+
+    " Then: validation fails (one active per contract)
+    then_assert_validation_failed( lt_failed ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Invariant 4: Approval above threshold
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD invariant4_approval_threshold.
+    " Given: contract termination request (threshold = 20 by default)
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+
+    " When: create offer with discount > threshold (25%)
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = 25
+                       IMPORTING ev_offer_uuid    = DATA(lv_offer)
+                                 et_failed        = DATA(lt_failed) ).
+
+    " Then: no validation failures (offer created, but approval required)
+    then_assert_no_failures( lt_failed ).
+
+    " Then: ApprovalStatus = PENDING (determination determineApprovalRequired)
+    READ ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      FIELDS ( ApprovalStatus )
+      WITH VALUE #( ( OfferUUID = lv_offer ) )
+      RESULT DATA(lt_offers).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_offers[ 1 ]-ApprovalStatus
+      exp = 'PENDING'
+      msg = 'ApprovalStatus should be PENDING when discount > threshold' ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: B1 — Discount = 30.01% (just above ceiling)
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_b1_discount_30_01.
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = '30.01'
+                       IMPORTING et_failed        = DATA(lt_failed) ).
+
+    then_assert_validation_failed( lt_failed ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: B3 — Discount = -1% (negative — tests lower bound)
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_b3_discount_negative.
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = -1
+                       IMPORTING et_failed        = DATA(lt_failed) ).
+
+    " If validation only checks upper bound (<= 30), -1 passes.
+    " validateDiscountCeiling checks BOTH bounds (0 <= Discount <= 30)
+    then_assert_validation_failed( lt_failed ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: S1 — acceptOffer on already-accepted offer
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_s1_accept_already_accepted.
+    " Given: an accepted offer
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+    given_active_offer_on_contract( EXPORTING iv_contract_uuid = lv_contract
+                                    IMPORTING ev_offer_uuid    = DATA(lv_offer) ).
+
+    " First accept
+    when_accept_offer( EXPORTING iv_offer_uuid = lv_offer
+                       IMPORTING et_failed     = DATA(lt_failed_1) ).
+    then_assert_no_failures( lt_failed_1 ).
+
+    " When: try to accept again
+    when_accept_offer( EXPORTING iv_offer_uuid = lv_offer
+                       IMPORTING et_failed     = DATA(lt_failed_2) ).
+
+    " Then: second accept fails (already accepted)
+    then_assert_validation_failed( lt_failed_2 ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: S4 — acceptOffer on expired offer
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_s4_accept_expired.
+    " Given: an offer that has expired
+    " (In real test: mock ValidTo to past timestamp, set status to EXPIRED)
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+
+    " Create offer and manually set to expired (via test double or direct setup)
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = 10
+                       IMPORTING ev_offer_uuid    = DATA(lv_offer)
+                                 et_failed        = DATA(lt_failed) ).
+    then_assert_no_failures( lt_failed ).
+
+    " Mock: set offer status to EXPIRED (in real test, use test double)
+    UPDATE zret_offer SET offer_status = 'EXPIRED'
+                    WHERE offer_uuid = @lv_offer.
+    COMMIT WORK AND WAIT.
+
+    " When: try to accept expired offer
+    when_accept_offer( EXPORTING iv_offer_uuid = lv_offer
+                       IMPORTING et_failed     = DATA(lt_failed_accept) ).
+
+    " Then: accept fails (offer expired)
+    then_assert_validation_failed( lt_failed_accept ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: D1 — non-existent contract UUID
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_d1_nonexistent_contract.
+    " Given: a contract UUID that doesn't exist
+    DATA(lv_fake_contract) = cl_system_uuid=>create_uuid_x16_static( ).
+
+    " When: create offer with non-existent contract
+    when_create_offer( EXPORTING iv_contract_uuid = lv_fake_contract
+                                 iv_discount      = 15
+                       IMPORTING et_failed        = DATA(lt_failed) ).
+
+    " Then: create fails (FK integrity / association check)
+    " NOTE: If BDEF association is not enforced, this is a BUG
+    then_assert_validation_failed( lt_failed ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: D3 — discount == threshold (tests > vs >=)
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_d3_threshold_boundary.
+    " Given: threshold = 20 (default)
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+
+    " When: create offer with discount == threshold (20%)
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = 20
+                       IMPORTING ev_offer_uuid    = DATA(lv_offer)
+                                 et_failed        = DATA(lt_failed) ).
+    then_assert_no_failures( lt_failed ).
+
+    " Then: ApprovalStatus should be NOT_REQUIRED (discount > threshold is strict >)
+    READ ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      FIELDS ( ApprovalStatus )
+      WITH VALUE #( ( OfferUUID = lv_offer ) )
+      RESULT DATA(lt_offers).
+
+    " DESIGN GAP: if business intent is >=, this should be PENDING
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_offers[ 1 ]-ApprovalStatus
+      exp = 'NOT_REQUIRED'
+      msg = 'At discount == threshold, approval should NOT be required (> operator)' ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: A1 — no authorization
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_a1_no_authorization.
+    " Given: user without Z_RET_OFF authorization
+    " (In real test: use SET PARAMETER or mock auth check)
+    " This test requires test double for AUTHORITY-CHECK
+
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+
+    " When: create offer without authorization
+    " NOTE: In managed BO, auth check is done by framework before validation
+    " This test verifies that the BDEF authorization master works
+    TRY.
+        when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                     iv_discount      = 15
+                           IMPORTING et_failed        = DATA(lt_failed) ).
+
+        " If we reach here without exception, auth check didn't fire
+        " (may be expected if test user has auth — use test double)
+        cl_abap_unit_assert=>fail(
+          msg = 'Expected authorization failure but create succeeded' ).
+      CATCH cx_root INTO DATA(lx_error).
+        " Expected: authorization error
+        cl_abap_unit_assert=>assert_text_matches(
+          pattern = '*auth*'
+          text    = lx_error->get_text( )
+          msg     = 'Expected authorization-related error' ).
+    ENDTRY.
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: C1 — concurrent creation on same contract
+  " NOTE: Requires MUAC (Multi-User Access Control) test framework
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_c1_concurrent_creation.
+    " Given: contract termination request
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+
+    " When: two concurrent creates for same contract
+    " In real test: use parallel background jobs with WAIT synchronization
+    " or ABAP MUAC framework
+
+    " For demo: sequential attempt (real concurrency needs MUAC)
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = 15
+                       IMPORTING ev_offer_uuid    = DATA(lv_offer_1)
+                                 et_failed        = DATA(lt_failed_1) ).
+    then_assert_no_failures( lt_failed_1 ).
+
+    " Second create should fail (one active per contract — lock + validation)
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = 20
+                       IMPORTING et_failed        = DATA(lt_failed_2) ).
+
+    " Then: second create fails
+    then_assert_validation_failed( lt_failed_2 ).
+
+    " NOTE: In true concurrency (two LUWs), the lock master should prevent
+    " the second create before validation even runs.
+    " This sequential test only validates the business rule, not the race.
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: B4 — exact 72h boundary
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_b4_exact_72h_boundary.
+    " Given: offer created at T
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = 10
+                       IMPORTING ev_offer_uuid    = DATA(lv_offer)
+                                 et_failed        = DATA(lt_failed) ).
+    then_assert_no_failures( lt_failed ).
+
+    " Mock: set ValidTo to exactly NOW (simulating T+72h)
+    UPDATE zret_offer SET valid_to = @sy-datum
+                    WHERE offer_uuid = @lv_offer.
+    COMMIT WORK AND WAIT.
+
+    " When: accept at exact boundary (ValidTo == NOW)
+    when_accept_offer( EXPORTING iv_offer_uuid = lv_offer
+                       IMPORTING et_failed     = DATA(lt_failed_accept) ).
+
+    " Then: offer should still be acceptable (ValidTo == NOW is not < NOW)
+    " DESIGN GAP: depends on operator (< vs <=)
+    then_assert_no_failures( lt_failed_accept ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: S2 — rejectOffer on already-accepted
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_s2_reject_accepted.
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+    given_active_offer_on_contract( EXPORTING iv_contract_uuid = lv_contract
+                                    IMPORTING ev_offer_uuid    = DATA(lv_offer) ).
+
+    " Accept first
+    when_accept_offer( EXPORTING iv_offer_uuid = lv_offer
+                       IMPORTING et_failed     = DATA(lt_failed_accept) ).
+    then_assert_no_failures( lt_failed_accept ).
+
+    " When: try to reject an accepted offer
+    MODIFY ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      EXECUTE rejectOffer
+      FROM VALUE #( ( OfferUUID = lv_offer ) )
+      REPORTED DATA(lt_reported)
+      FAILED DATA(lt_failed).
+    COMMIT WORK AND WAIT.
+
+    " Then: reject fails (cannot reject accepted offer)
+    then_assert_validation_failed( lt_failed ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: S3 — acceptOffer on rejected offer
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_s3_accept_rejected.
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+    given_active_offer_on_contract( EXPORTING iv_contract_uuid = lv_contract
+                                    IMPORTING ev_offer_uuid    = DATA(lv_offer) ).
+
+    " Reject first
+    MODIFY ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      EXECUTE rejectOffer
+      FROM VALUE #( ( OfferUUID = lv_offer ) )
+      REPORTED DATA(lt_reported_reject)
+      FAILED DATA(lt_failed_reject).
+    COMMIT WORK AND WAIT.
+    then_assert_no_failures( lt_failed_reject ).
+
+    " When: try to accept a rejected offer
+    when_accept_offer( EXPORTING iv_offer_uuid = lv_offer
+                       IMPORTING et_failed     = DATA(lt_failed_accept) ).
+
+    " Then: accept fails (cannot accept rejected offer)
+    then_assert_validation_failed( lt_failed_accept ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: C3 — modify discount while approval pending
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_c3_modify_while_pending.
+    " Given: offer with PENDING approval (discount > threshold)
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = 25  " > threshold (20)
+                       IMPORTING ev_offer_uuid    = DATA(lv_offer)
+                                 et_failed        = DATA(lt_failed) ).
+    then_assert_no_failures( lt_failed ).
+
+    " Verify ApprovalStatus = PENDING
+    READ ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      FIELDS ( ApprovalStatus )
+      WITH VALUE #( ( OfferUUID = lv_offer ) )
+      RESULT DATA(lt_offers).
+    cl_abap_unit_assert=>assert_equals( act = lt_offers[ 1 ]-ApprovalStatus
+                                        exp = 'PENDING' ).
+
+    " When: try to modify discount while PENDING
+    MODIFY ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      UPDATE FIELDS ( Discount )
+      WITH VALUE #( ( OfferUUID = lv_offer
+                      Discount   = 15 ) )
+      REPORTED DATA(lt_reported)
+      FAILED DATA(lt_failed_mod).
+    COMMIT WORK AND WAIT.
+
+    " Then: modify should fail (validateApprovalStatus blocks save when PENDING)
+    " DESIGN GAP: validation is on save, not on modify — the update may
+    " succeed but the save (COMMIT) should fail.
+    " If lt_failed_mod is initial, the validation didn't fire on update.
+    " This is a potential bug — C3 finding.
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lt_failed_mod
+      msg = 'Expected modification to fail while approval is PENDING (C3 finding)' ).
+  ENDMETHOD.
+
+  " ═══════════════════════════════════════════════════════════════════
+  " Adversarial: D2 — modify ContractUUID (should be readonly)
+  " ═══════════════════════════════════════════════════════════════════
+
+  METHOD adv_d2_modify_contract_uuid.
+    given_contract_termination_request( IMPORTING ev_contract_uuid = DATA(lv_contract) ).
+    when_create_offer( EXPORTING iv_contract_uuid = lv_contract
+                                 iv_discount      = 10
+                       IMPORTING ev_offer_uuid    = DATA(lv_offer)
+                                 et_failed        = DATA(lt_failed) ).
+    then_assert_no_failures( lt_failed ).
+
+    " When: try to modify ContractUUID to a different contract
+    DATA(lv_new_contract) = cl_system_uuid=>create_uuid_x16_static( ).
+
+    MODIFY ENTITIES OF zi_retention_offer
+      ENTITY Offer
+      UPDATE FIELDS ( ContractUUID )
+      WITH VALUE #( ( OfferUUID    = lv_offer
+                      ContractUUID = lv_new_contract ) )
+      REPORTED DATA(lt_reported)
+      FAILED DATA(lt_failed_mod).
+    COMMIT WORK AND WAIT.
+
+    " Then: update fails (ContractUUID is readonly — BDEF field(readonly))
+    then_assert_validation_failed( lt_failed_mod ).
+  ENDMETHOD.
+
+ENDCLASS.

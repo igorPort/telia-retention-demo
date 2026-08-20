@@ -1,0 +1,82 @@
+I have loaded the domain-discovery-rap skill and reviewed its output format and hard rules. The task is a knowledge-production task — produce the one-page domain model per the skill's exact format. No code, no repo discovery needed. Here is the domain model:
+
+# Domain Model: Retention Offer (Telia)
+
+## Events
+| Event | Producer | Consumer | Payload |
+|-------|----------|----------|---------|
+| RetentionScenarioTriggered | CRM | RetentionBO | ContractUUID, CustomerUUID, ARPU, Segment, ContractLifetime |
+| RetentionOfferCreated | RetentionBO | CRM, Billing | OfferUUID, ContractUUID, CustomerUUID, Status, ValidFrom, ValidTo |
+| DiscountCalculated | RetentionBO | CRM | OfferUUID, Discount, ApprovalThresholdAtCreation |
+| OfferApprovalRequested | RetentionBO | SAP Workflow | OfferUUID, Discount, Approver |
+| OfferApproved | SAP Workflow | RetentionBO | OfferUUID, Approver, Decision, ApprovalTimestamp |
+| OfferRejected | RetentionBO | CRM, Billing | OfferUUID, ReasonCode, ReasonText |
+| OfferAccepted | RetentionBO | Billing, CRM | OfferUUID, ContractUUID, Discount |
+| DiscountApplied | Billing | RetentionBO, CRM | OfferUUID, ContractUUID, AppliedDiscount |
+| OfferExpired | Scheduler (App Job) | RetentionBO | OfferUUID, ExpiredAt |
+
+## Commands
+| Command | Actor | Aggregate | Triggers Event |
+|---------|-------|-----------|----------------|
+| CreateOffer | CRM Agent | RetentionOffer | RetentionOfferCreated |
+| CalculateDiscount | System (determination) | RetentionOffer | DiscountCalculated |
+| RequestApproval | CRM Agent | RetentionOffer | OfferApprovalRequested |
+| ApproveOffer | Approver (Workflow) | RetentionOffer | OfferApproved |
+| RejectOffer | CRM Agent | RetentionOffer | OfferRejected |
+| AcceptOffer | CRM Agent | RetentionOffer | OfferAccepted → DiscountApplied |
+| (System) ExpireOffer | Application Job | RetentionOffer | OfferExpired |
+
+## Aggregates (RAP Business Objects)
+
+### RetentionOffer (Root — Managed, with Draft)
+| Entity | Key | Parent | Fields |
+|--------|-----|--------|--------|
+| RetentionOffer | OfferUUID | — | ContractUUID, CustomerUUID, Discount, Status, ValidFrom, ValidTo, ApprovalStatus, ApprovalThresholdAtCreation, ARPU, Segment, ContractLifetime, LastChangedAt, LastChangedBy, CreatedAt, CreatedBy |
+| RetentionOfferReason | ItemUUID | RetentionOffer | ReasonCode, ReasonText |
+| RetentionOfferApproval | ApprovalUUID | RetentionOffer | Approver, ApprovalTimestamp, Decision, Comment |
+
+Lock master: total etag `LastChangedAt`; lock scope: `ContractUUID`.
+
+## Invariants → Enforcement Mapping
+| # | Invariant | Type | Enforcement Point | RAP Mechanism |
+|---|-----------|------|-------------------|----------------|
+| 1 | Discount ≤ 30% | Validation | validateDiscount | Validation method in BDEF (on save); determination CalculateDiscount caps value before save |
+| 2 | Offer expires after 72 hours | Determination | determineExpiry | Determination on modify { create; } sets ValidTo = CreatedAt + 72h; Application Job sweep sets Status=Expired |
+| 3 | Only one active offer per contract at any time | Validation + Lock | validateSingleActiveOffer | Validation on save (query active offers for ContractUUID); lock scope ContractUUID prevents concurrent create |
+| 4 | Approval required above configurable threshold | Validation + Action | validateApprovalStatus + requestApproval | Validation on save checks ApprovalStatus when Discount > ApprovalThresholdAtCreation; action requestApproval → SAP workflow |
+
+All four invariants map to concrete RAP mechanisms. No design problem flagged.
+
+## Bounded Context Boundaries
+| Context | Owns | References | Integration |
+|---------|------|------------|-------------|
+| Retention | RetentionOffer, RetentionOfferReason, RetentionOfferApproval | Contract (read), Customer (read), Interaction/Complaint History (read) | RAP association to CRM BOs; outbound REST to Billing |
+| CRM | Contract, Customer, Interaction/Complaint | RetentionOffer (read) | RAP association (inbound) |
+| Billing | Invoice, Tariff, Discount calculation | RetentionOffer (read) | Released REST API (inbound consumer) |
+| Workflow/Approval | Approval process, Approver routing | RetentionOffer (read) | SAP standard workflow (async) |
+
+## Integration Contracts
+| Contract | Direction | Mechanism | Error Handling |
+|---------|-----------|-----------|---------------|
+| Billing.CalculateDiscount | Outbound | Sync REST (released) `/Billing/CalculateDiscount` POST | CX class, synchronous fail → ABAP exception, no retry (user-facing) |
+| Billing.ApplyDiscount | Outbound | Sync REST (released) `/Billing/ApplyDiscount` POST | Idempotent via OfferUUID; CX class, retry on transient failure |
+| CRM.Contract | Inbound | RAP association (read) | Referential; no write-back |
+| CRM.Customer | Inbound | RAP association (read) | Referential; no write-back |
+| CRM.InteractionHistory | Inbound | CDS view read | Read-only; no error path |
+| Approval.Workflow | Async Outbound | SAP standard workflow (requestApproval action) | Status polled via ApprovalStatus; no sync failure |
+| Expiry.Sweep | Internal | Application Job (scheduled) | Idempotent; logs skipped/expired; no user-facing error |
+
+---
+
+## Summary
+
+- **What I did:** Loaded the `domain-discovery-rap` skill, followed its output format and hard rules exactly, and produced the one-page Event Storming domain model for the Telia Retention Offer feature from the Stage 1a strategic plan.
+- **What I found/accomplished:**
+  - 9 domain events (past tense) with producer/consumer/payload.
+  - 7 commands with actor, aggregate, and triggering event.
+  - 1 aggregate (RetentionOffer root) with 3 entities and full field lists from the strategic plan.
+  - All 4 invariants from the scenario mapped to concrete RAP mechanisms (validation, determination, action, lock) — none flagged as design problems.
+  - 4 bounded contexts with ownership/reference/integration.
+  - 7 integration contracts covering outbound Billing APIs, inbound CRM associations, async workflow, and internal Application Job.
+- **Files created/modified:** None — the task specifies output to stdout only (the domain model above). No code was written, per the skill's hard rules.
+- **Issues encountered:** None. All invariants mapped cleanly to RAP enforcement mechanisms; no human decision gates required.

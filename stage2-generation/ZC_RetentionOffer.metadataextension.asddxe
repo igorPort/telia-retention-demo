@@ -1,0 +1,124 @@
+" Artifact: ZC_RetentionOffer (Metadata Extension — UI Annotations)
+" Generated from: Domain Model v1 (approved)
+" House rules: FIORI-001 (headerInfo), FIORI-002 (lineItem), FIORI-003 (selectionField),
+"             FIORI-004 (identification), FIORI-006 (importance), FIORI-007 (labels),
+"             FIORI-008 (criticality), FIORI-009 (facets), FIORI-010 (#FOR_ACTION),
+"             FIORI-011 (confirm popup for destructive), FIORI-013 (draft handling)
+@Metadata.layer: #CORE
+@UI.headerInfo: {
+  typeName: 'Retention Offer',
+  typeNamePlural: 'Retention Offers',
+  title: { value: 'OfferUUID' },
+  description: { value: 'ContractUUID' }
+}
+@UI.draftHandling.purpose: #draft
+
+define view entity ZC_RetentionOffer
+  with metadata extension ZC_RetentionOffer
+{
+  /* Facets — FIORI-009 */
+  @UI.facet: [
+    { id: 'OfferInfo', purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE, label: 'Offer Details', position: 10 },
+    { id: 'ApprovalInfo', purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE, label: 'Approval Details', position: 20 },
+    { id: 'Reasons', purpose: #STANDARD, type: #LINEGROUP_REFERENCE, label: 'Reasons', targetElement: '_Reasons', position: 30 }
+  ]
+
+  /* List Report columns — FIORI-002, FIORI-006, FIORI-007 */
+  @UI.lineItem: [{ position: 10, label: 'Offer ID', importance: #HIGH }]
+  @UI.selectionField: [{ position: 10 }]
+  OfferUUID;
+
+  @UI.lineItem: [{ position: 20, label: 'Contract', importance: #HIGH }]
+  @UI.selectionField: [{ position: 20 }]
+  ContractUUID;
+
+  @UI.lineItem: [{ position: 30, label: 'Discount %', importance: #HIGH }]
+  @UI.identification: [{ position: 10, label: 'Discount %' }]
+  Discount;
+
+  /* FIORI-008: Criticality for status field */
+  @UI.lineItem: [{ position: 40, label: 'Status', importance: #HIGH, criticality: 'OfferStatusCriticality' }]
+  @UI.identification: [{ position: 20, label: 'Status' }]
+  OfferStatus;
+
+  @UI.lineItem: [{ position: 50, label: 'Valid From', importance: #MEDIUM }]
+  ValidFrom;
+
+  @UI.lineItem: [{ position: 60, label: 'Valid To', importance: #MEDIUM }]
+  ValidTo;
+
+  @UI.lineItem: [{ position: 70, label: 'Approval Status', importance: #MEDIUM, criticality: 'ApprovalStatusCriticality' }]
+  ApprovalStatus;
+
+  @UI.lineItem: [{ position: 80, label: 'ARPU', importance: #LOW }]
+  ARPU;
+
+  @UI.lineItem: [{ position: 90, label: 'Segment', importance: #LOW }]
+  Segment;
+
+  /* Actions — FIORI-010, FIORI-011 (confirm popup for reject) */
+  @UI.lineItem: [{ type: #FOR_ACTION, dataAction: 'acceptOffer', label: 'Accept Offer', position: 100 }]
+  @UI.identification: [{ type: #FOR_ACTION, dataAction: 'acceptOffer', label: 'Accept Offer', position: 30 }]
+  field AcceptOfferButton;
+
+  @UI.lineItem: [{
+    type: #FOR_ACTION,
+    dataAction: 'rejectOffer',
+    label: 'Reject Offer',
+    position: 110,
+    confirmActionText: 'Reject Offer',
+    confirmActionPopupText: 'Are you sure you want to reject this retention offer?'
+  }]
+  @UI.identification: [{
+    type: #FOR_ACTION,
+    dataAction: 'rejectOffer',
+    label: 'Reject Offer',
+    position: 40,
+    confirmActionText: 'Reject Offer',
+    confirmActionPopupText: 'Are you sure you want to reject this retention offer?'
+  }]
+  field RejectOfferButton;
+
+  @UI.lineItem: [{ type: #FOR_ACTION, dataAction: 'requestApproval', label: 'Request Approval', position: 120 }]
+  field RequestApprovalButton;
+
+  /* Hidden technical fields */
+  @UI.hidden: true
+  CustomerUUID;
+
+  @UI.hidden: true
+  ApprovalThresholdAtCreation;
+
+  @UI.hidden: true
+  LastChangedAt;
+
+  @UI.hidden: true
+  LastChangedBy;
+
+  @UI.hidden: true
+  CreatedAt;
+
+  @UI.hidden: true
+  CreatedBy;
+
+  /* Virtual fields for criticality calculation */
+  @UI.hidden: true
+  virtual OfferStatusCriticality : type i;
+
+  @UI.hidden: true
+  virtual ApprovalStatusCriticality : type i;
+
+  /* Compositions */
+  _Reasons;
+  _Approvals;
+
+  /* Associations (read-only in UI) */
+  @UI.hidden: true
+  _Contract;
+
+  @UI.hidden: true
+  _Customer;
+
+  @UI.hidden: true
+  _InteractionHistory;
+}

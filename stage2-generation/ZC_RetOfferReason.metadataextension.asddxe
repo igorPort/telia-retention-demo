@@ -1,0 +1,31 @@
+" Artifact: ZC_RetOfferReason (Metadata Extension — UI Annotations)
+" Generated from: Domain Model v1 (approved)
+" House rules: FIORI-001, FIORI-002, FIORI-007, FIORI-013
+@Metadata.layer: #CORE
+@UI.headerInfo: {
+  typeName: 'Offer Reason',
+  typeNamePlural: 'Offer Reasons',
+  title: { value: 'ReasonCode' },
+  description: { value: 'ReasonText' }
+}
+@UI.draftHandling.purpose: #draft
+
+define view entity ZC_RetOfferReason
+  with metadata extension ZC_RetOfferReason
+{
+  @UI.lineItem: [{ position: 10, label: 'Reason Code', importance: #HIGH }]
+  @UI.identification: [{ position: 10, label: 'Reason Code' }]
+  ReasonCode;
+
+  @UI.lineItem: [{ position: 20, label: 'Description', importance: #HIGH }]
+  @UI.identification: [{ position: 20, label: 'Description' }]
+  ReasonText;
+
+  @UI.hidden: true
+  ReasonUUID;
+
+  @UI.hidden: true
+  ParentUUID;
+
+  _Parent;
+}

@@ -1,4 +1,4 @@
-" Artifact: ZC_RetOfferApproval (Projection CDS View — Child)
+"  Artifact: ZC_RetOfferApproval (Projection CDS View — Child)
 " Generated from: Domain Model v1 (approved)
 @AccessControl.authorizationCheck: #CHECK_REQUIRED
 @EndUserText.label: 'Retention Offer Approval'
